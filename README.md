@@ -20,6 +20,17 @@ This PowerShell script is designed to enhance the security of Windows servers by
 ## Installation
 
 1. **Clone the Repository**:
-
+   ```sh
    git clone https://github.com/Jurgens92/RDPSecure.git
    cd RDPSecure
+   .\RDPSecure.ps1
+
+
+## Create Required Directories and Files: Ensure the following directory and files exist:
+C:\RDP\
+C:\RDP\blacklist.txt
+C:\RDP\whitelist.txt
+C:\RDP\log.txt
+
+## You can create them manually or the script will create them if they do not exist.
+Edit the Whitelist: Add any IP addresses you want to whitelist to C:\RDP\whitelist.txt, one per line.
