@@ -22,11 +22,20 @@ if (-not (Test-Path $logPath)) {
     New-Item -Path $logPath -ItemType File
 }
 
-# Function to log messages
+# Function to log messages with log rotation
 function Log-Message {
     param (
         [string]$message
     )
+    
+    # Check if log file size exceeds 10MB
+    if ((Test-Path $logPath) -and ((Get-Item $logPath).Length -gt 10MB)) {
+        $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+        $backupPath = "$blacklistDir\log_$timestamp.txt"
+        Rename-Item -Path $logPath -NewName $backupPath -Force
+        New-Item -Path $logPath -ItemType File
+    }
+    
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Add-Content -Path $logPath -Value "$timestamp - $message"
 }
@@ -36,6 +45,10 @@ function Update-Blacklist {
     try {
         Log-Message "Starting Update-Blacklist function."
 
+        # Enable audit policies
+        auditpol /set /subcategory:"Logon" /success:enable /failure:enable
+        auditpol /set /subcategory:"Other Logon/Logoff Events" /success:enable /failure:enable
+        
         # Get failed RDP connection attempts from the event log
         $failedRDPAttempts = Get-WinEvent -LogName "Security" -FilterXPath "*[System[(EventID=4625)]]"
 
@@ -139,6 +152,6 @@ $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (Ne
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
 
 # Register the scheduled task
-Register-ScheduledTask -TaskName "UpdateRDPBlacklist" -Action $action -Trigger $trigger -Settings $settings
+Register-ScheduledTask -TaskName "UpdateRDPBlacklist" -Action $action -Trigger $trigger -Settings $settings -User "SYSTEM"
 
 Log-Message "Scheduled task registered successfully."
