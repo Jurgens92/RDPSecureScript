@@ -24,7 +24,9 @@ This PowerShell script is designed to enhance the security of Windows servers by
    git clone https://github.com/Jurgens92/RDPSecureScript.git
    cd RDP
    .\RDPSecure.ps1
-   **Note, Task Scheduler will run the script from where it was ran, so create the ps1 file inside C:\RDP
+
+   
+   ###** Note, Task Scheduler will run the script from where it was ran, so create the ps1 file inside C:\RDP**
 
 
 ## Create Required Directories and Files: Ensure the following directory and files exist:
