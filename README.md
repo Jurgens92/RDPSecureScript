@@ -9,7 +9,7 @@ This PowerShell script is designed to enhance the security of Windows servers by
 - **Automatic IP Blocking**: Monitors failed RDP login attempts and blocks IP addresses with more than 3 failed attempts.
 - **Whitelist Support**: Ensures that whitelisted IP addresses are never blocked.
 - **Firewall Rule Management**: Updates the Windows Firewall to block IP addresses listed in the blacklist.
-- **Scheduled Task**: Runs the script every 15 minutes to keep the blacklist and firewall rules updated.
+- **Scheduled Task**: Runs the script every 5 minutes to keep the blacklist and firewall rules updated.
 - **Firewall Enablement**: Ensures the firewall is enabled for all profiles (Domain, Private, and Public).
 
 ## Prerequisites
