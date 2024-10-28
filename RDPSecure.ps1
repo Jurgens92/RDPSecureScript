@@ -145,8 +145,8 @@ Update-FirewallRule
 # Define the scheduled task action to run this script
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -File `"$PSScriptRoot\RDPSecure.ps1`""
 
-# Define the trigger to run the task every 15 minutes
-$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration (New-TimeSpan -Days 1)
+# Define the trigger to run the task every 15 minutes indefinitely
+$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 15)
 
 # Define the scheduled task settings
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
