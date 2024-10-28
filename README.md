@@ -22,7 +22,7 @@ This PowerShell script is designed to enhance the security of Windows servers by
 1. **Clone the Repository**:
    ```sh
    git clone https://github.com/Jurgens92/RDPSecureScript.git
-   cd RDPSecure
+   cd RDP
    .\RDPSecure.ps1
 
 
