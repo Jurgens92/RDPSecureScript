@@ -22,6 +22,21 @@ if (-not (Test-Path $logPath)) {
     New-Item -Path $logPath -ItemType File
 }
 
+# Function to validate IP address (both IPv4 and IPv6)
+function Test-ValidIP {
+    param (
+        [string]$ip
+    )
+    
+    try {
+        $parsedIP = [System.Net.IPAddress]::Parse($ip)
+        # Exclude empty or invalid IPs
+        return $ip -ne "-" -and $ip -ne "" -and $ip -ne $null
+    } catch {
+        return $false
+    }
+}
+
 # Function to log messages with log rotation
 function Log-Message {
     param (
@@ -57,11 +72,9 @@ function Update-Blacklist {
             return
         }
 
-        # Log details of each failed attempt for debugging
-        foreach ($event in $failedRDPAttempts) {
-            $properties = $event.Properties | ForEach-Object { $_.Value }
-            Log-Message "Event ID: $($event.Id), Properties: $($properties -join ', ')"
-        }
+        # Get existing blacklist and whitelist
+        $existingBlacklist = @(Get-Content -Path $blacklistPath)
+        $whitelist = @(Get-Content -Path $whitelistPath)
 
         # Group by source IP and count occurrences
         $ipGroups = $failedRDPAttempts | Group-Object -Property { $_.Properties[19].Value } | Where-Object { $_.Count -gt 3 }
@@ -71,16 +84,29 @@ function Update-Blacklist {
             return
         }
 
+        $blacklistUpdated = $false
+        
         # Add IPs with more than 3 failed attempts to the blacklist, excluding whitelisted IPs
-        $whitelist = Get-Content -Path $whitelistPath
         foreach ($group in $ipGroups) {
             $sourceIP = $group.Name
             Log-Message "Processing IP: $sourceIP"
-            if ($sourceIP -and $sourceIP -ne "-" -and $sourceIP -match "^\d{1,3}(\.\d{1,3}){3}$" -and -not (Get-Content $blacklistPath | Select-String -Pattern $sourceIP) -and -not ($whitelist -contains $sourceIP)) {
+            
+            if (Test-ValidIP -ip $sourceIP) {
+                if ($whitelist -contains $sourceIP) {
+                    Log-Message "$sourceIP is in whitelist - skipping."
+                    continue
+                }
+                
+                if ($existingBlacklist -contains $sourceIP) {
+                    Log-Message "$sourceIP is already in blacklist - skipping."
+                    continue
+                }
+                
                 Add-Content -Path $blacklistPath -Value $sourceIP
                 Log-Message "Added $sourceIP to blacklist."
+                $blacklistUpdated = $true
             } else {
-                Log-Message "$sourceIP is already in the blacklist, is invalid, or is whitelisted."
+                Log-Message "$sourceIP is not a valid IP address - skipping."
             }
         }
 
@@ -110,8 +136,8 @@ function Update-FirewallRule {
         Log-Message "Starting Update-FirewallRule function."
 
         # Read the blacklist and whitelist files
-        $blacklist = Get-Content -Path $blacklistPath
-        $whitelist = Get-Content -Path $whitelistPath
+        $blacklist = @(Get-Content -Path $blacklistPath)
+        $whitelist = @(Get-Content -Path $whitelistPath)
 
         # Remove whitelisted IPs from the blacklist
         $effectiveBlacklist = $blacklist | Where-Object { $whitelist -notcontains $_ }
@@ -121,14 +147,47 @@ function Update-FirewallRule {
             return
         }
 
-        # Create or update the firewall rule
-        $existingRule = Get-NetFirewallRule -DisplayName "Block RDP from Blacklist" -ErrorAction SilentlyContinue
-        if ($existingRule) {
-            Set-NetFirewallRule -DisplayName "Block RDP from Blacklist" -RemoteAddress $effectiveBlacklist -Direction Inbound -Action Block -Protocol TCP -LocalPort 3389 -Profile Any
-            Log-Message "Updated existing firewall rule with new effective blacklist."
-        } else {
-            New-NetFirewallRule -DisplayName "Block RDP from Blacklist" -RemoteAddress $effectiveBlacklist -Direction Inbound -Action Block -Protocol TCP -LocalPort 3389 -Profile Any
-            Log-Message "Created new firewall rule with effective blacklist."
+        # Separate IPv4 and IPv6 addresses
+        $ipv4List = @()
+        $ipv6List = @()
+        
+        foreach ($ip in $effectiveBlacklist) {
+            try {
+                $parsedIP = [System.Net.IPAddress]::Parse($ip)
+                if ($parsedIP.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork) {
+                    $ipv4List += $ip
+                } elseif ($parsedIP.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetworkV6) {
+                    $ipv6List += $ip
+                }
+            } catch {
+                Log-Message "Invalid IP address found in blacklist: $ip"
+            }
+        }
+
+        # Update or create IPv4 rule
+        $ruleName = "Block RDP from Blacklist - IPv4"
+        $existingRule = Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
+        if ($ipv4List.Count -gt 0) {
+            if ($existingRule) {
+                Set-NetFirewallRule -DisplayName $ruleName -RemoteAddress $ipv4List -Direction Inbound -Action Block -Protocol TCP -LocalPort 3389 -Profile Any
+                Log-Message "Updated existing IPv4 firewall rule."
+            } else {
+                New-NetFirewallRule -DisplayName $ruleName -RemoteAddress $ipv4List -Direction Inbound -Action Block -Protocol TCP -LocalPort 3389 -Profile Any
+                Log-Message "Created new IPv4 firewall rule."
+            }
+        }
+
+        # Update or create IPv6 rule
+        $ruleName = "Block RDP from Blacklist - IPv6"
+        $existingRule = Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
+        if ($ipv6List.Count -gt 0) {
+            if ($existingRule) {
+                Set-NetFirewallRule -DisplayName $ruleName -RemoteAddress $ipv6List -Direction Inbound -Action Block -Protocol TCP -LocalPort 3389 -Profile Any
+                Log-Message "Updated existing IPv6 firewall rule."
+            } else {
+                New-NetFirewallRule -DisplayName $ruleName -RemoteAddress $ipv6List -Direction Inbound -Action Block -Protocol TCP -LocalPort 3389 -Profile Any
+                Log-Message "Created new IPv6 firewall rule."
+            }
         }
 
         Log-Message "Update-FirewallRule function completed successfully."
